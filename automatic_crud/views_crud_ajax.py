@@ -14,7 +14,7 @@ from automatic_crud.response_messages import *
 class BaseListAJAX(BaseCrud):
 
     def get_queryset(self):
-        return self.model.objects.filter(model_state=True).select_related().prefetch_related()
+        return self.model.objects.filter(model_state=True).filter(**self.get_query_string()).select_related().prefetch_related()
 
     def get_server_side_queryset(self):
         """
@@ -23,9 +23,7 @@ class BaseListAJAX(BaseCrud):
 
         """
 
-        return self.model.objects.filter(
-            model_state=True
-        ).select_related().prefetch_related().order_by(f"{self.request.GET.get('order_by','id')}")
+        return self.model.objects.filter(model_state=True).filter(**self.get_query_string()).select_related().prefetch_related().order_by(f"{self.request.GET.get('order_by','id')}")
 
     def server_side(self):
         """
@@ -61,7 +59,7 @@ class BaseListAJAX(BaseCrud):
             del instance['model']
             for field in instance['fields']:
                 if field in self.model.exclude_fields:
-                    del instance['fields'][f'{exclude_field}']
+                    del instance['fields'][f'{field}']
 
             instance['index'] = index + 1
             object_list.append(instance)
@@ -88,15 +86,14 @@ class BaseListAJAX(BaseCrud):
             del item['model']
         self.data = json.dumps(temp_data)
 
-    def clean_query_string(self, request):
+    def get_query_string(self):
         """
         Generate a dictionary with query string matching model fields
 
         """
         fields = self.get_fields_for_model()
-        received_query_dict = request.GET.dict()
+        received_query_dict = self.request.GET.dict()
         valid_query_dict = {}
-        print(fields)
         for k, v in received_query_dict.items():
             if k in fields:
                 valid_query_dict[k] = v
@@ -125,13 +122,13 @@ class BaseListAJAX(BaseCrud):
             return response
 
         if self.model.server_side:
-            self.data = serialize('json', self.get_server_side_queryset().filter(**self.clean_query_string(request)),
+            self.data = serialize('json', self.get_server_side_queryset(),
                                   fields=self.get_fields_for_model(),
                                   use_natural_foreign_keys=True)
             self.server_side()
         else:
             self.data = serialize('json', self.get_queryset(),
-                                  fields=self.get_fields_for_model().filter(**self.clean_query_string(request)),
+                                  fields=self.get_fields_for_model(),
                                   use_natural_foreign_keys=True)
             self.normalize_data()
         return HttpResponse(self.data, content_type="application/json")
@@ -157,8 +154,14 @@ class BaseCreateAJAX(BaseCrud):
         self.form_class = get_form(form, self.model)
         form = self.form_class(request.POST, request.FILES)
         if form.is_valid():
-            form.save()
-            return success_create_message(self.model)
+            instance = form.save()
+            data = serialize(
+                'json', [form.instance, ],
+                fields=self.get_fields_for_model(),
+                use_natural_foreign_keys=True,
+                use_natural_primary_keys=True
+            ) if instance is not None and instance.pk is not None else None
+            return success_create_message(self.model, data)
         return error_create_message(self.model, form)
 
 
@@ -271,8 +274,14 @@ class BaseUpdateAJAX(BaseCrud):
             form = self.form_class(
                 request.POST, request.FILES, instance=instance)
             if form.is_valid():
-                form.save()
-                return success_update_message(self.model)
+                instance = form.save()
+                data = serialize(
+                    'json', [instance, ],
+                    fields=self.get_fields_for_model(),
+                    use_natural_foreign_keys=True,
+                    use_natural_primary_keys=True
+                ) if instance is not None and instance.pk is not None else None
+                return success_update_message(self.model, data)
             else:
                 return error_update_message(self.model, form)
         return not_found_message(self.model)
@@ -297,7 +306,13 @@ class BaseDirectDeleteAJAX(BaseCrud):
         instance = get_object(self.model, self.kwargs['pk'])
         if instance is not None:
             instance.delete()
-            return success_delete_message(self.model)
+            data = serialize(
+                'json', [instance, ],
+                fields=self.get_fields_for_model(),
+                use_natural_foreign_keys=True,
+                use_natural_primary_keys=True
+            )
+            return success_delete_message(self.model, data)
         return not_found_message(self.model)
 
 
