@@ -22,17 +22,17 @@ get\_object
 
 .. code:: python
 
-    def get_object(model: Instance,pk: int):
-        # return the record for a pk sended
-        instance = model.objects.filter(id = pk,model_state = True).first()
+    def get_object(model: Instance,id: int):
+        # return the record for a id sended
+        instance = model.objects.filter(id = id,model_state = True).first()
         if instance:
             return instance
         return None
 
 -  **model** - Modelo a realizar la consulta.
--  **pk** - ID de registro a buscar.
+-  **id** - ID de registro a buscar.
 
-Retorna la instancia del modelo perteneciente al pk enviado.
+Retorna la instancia del modelo perteneciente al id enviado.
 
 get\_model\_fields\_names
 -------------------------

@@ -22,9 +22,9 @@ herencia, todo modelo obtendrá los siguientes campos:
 
     id = models.AutoField(primary_key = True)
     model_state = models.BooleanField(default = True)
-    date_created = models.DateTimeField('Fecha de Creación', auto_now=False, auto_now_add=True)
-    date_modified = models.DateTimeField('Fecha de Modificación', auto_now=True, auto_now_add=False)
-    date_deleted = models.DateTimeField('Fecha de Eliminación', auto_now=True, auto_now_add=False)
+    created_at = models.DateTimeField('Fecha de Creación', auto_now=False, auto_now_add=True)
+    updated_at = models.DateTimeField('Fecha de Modificación', auto_now=True, auto_now_add=False)
+    deleted_at = models.DateTimeField('Fecha de Eliminación', auto_now=True, auto_now_add=False)
 
    model_state es usado dentro de Django Automatic CRUD para la
     eliminación lógica.
@@ -36,13 +36,12 @@ Y los siguientes atributos:
     all_cruds_types = True
     normal_cruds = False
     ajax_crud = False
-    server_side = False
     exclude_model = False
     login_required = False
     permission_required = ()
     model_permissions = False
     default_permissions = False
-    exclude_fields = ['date_created','date_modified','date_deleted','model_state']
+    exclude_fields = ['created_at','updated_at','deleted_at','model_state']
 
     success_create_message = "registrado correctamente!"
     success_update_message = "actualizado correctamente!"
@@ -98,7 +97,7 @@ Atributos de modelos que hereden de BaseModel
    serán tomados en cuenta para listar, editar, crear o cuando se
    obtenga el detalle de un registro. Por defecto los campos excluidos
    son los campos:
-   ``date_created,date_modified,date_deleted,model_state``.
+   ``created_at,updated_at,deleted_at,model_state``.
 
 -  **success\_create\_message** - mensaje por defecto mostrado cuando se
    realiza un nuevo registro del modelo. Este campo es concatenado con

@@ -71,18 +71,18 @@ Django Automatic CRUD es un proyecto que genera CRUDS automáticos para cada mod
 
     automatic_crud/ app_name/ model_name / list / [name="app_name-model_name-list"]
     automatic_crud/ app_name/ model_name / create / [name="app_name-model_name-create"]
-    automatic_crud/ app_name/ model_name / detail / <int:pk>/ [name="app_name-model_name-detail"]
-    automatic_crud/ app_name/ model_name / update / <int:pk>/ [name="app_name-model_name-update"]
-    automatic_crud/ app_name/ model_name / logic-delete / <int:pk>/ [name="app_name-model_name-logic-delete"]
-    automatic_crud/ app_name/ model_name / direct-delete / <int:pk>/ [name="app_name-model_name-direct-delete"]
+    automatic_crud/ app_name/ model_name / detail / <int:id>/ [name="app_name-model_name-detail"]
+    automatic_crud/ app_name/ model_name / update / <int:id>/ [name="app_name-model_name-update"]
+    automatic_crud/ app_name/ model_name / logic-delete / <int:id>/ [name="app_name-model_name-logic-delete"]
+    automatic_crud/ app_name/ model_name / direct-delete / <int:id>/ [name="app_name-model_name-direct-delete"]
     automatic_crud/ app_name/ model_name / excel-report / [name="app_name-model_name-excel-report"]
 
     automatic_crud/ ajax-app_name/ model_name / list / [name="app_name-model_name-list-ajax"]
     automatic_crud/ ajax-app_name/ model_name / create / [name="app_name-model_name-create-ajax"]
-    automatic_crud/ ajax-app_name/ model_name / detail / <int:pk>/ [name="app_name-model_name-detail-ajax"]
-    automatic_crud/ ajax-app_name/ model_name / update / <int:pk>/ [name="app_name-model_name-update-ajax"]
-    automatic_crud/ ajax-app_name/ model_name / logic-delete / <int:pk>/ [name="app_name-model_name-logic-delete-ajax"]
-    automatic_crud/ ajax-app_name/ model_name / direct-delete / <int:pk>/ [name="app_name-model_name-direct-delete-ajax"]
+    automatic_crud/ ajax-app_name/ model_name / detail / <int:id>/ [name="app_name-model_name-detail-ajax"]
+    automatic_crud/ ajax-app_name/ model_name / update / <int:id>/ [name="app_name-model_name-update-ajax"]
+    automatic_crud/ ajax-app_name/ model_name / logic-delete / <int:id>/ [name="app_name-model_name-logic-delete-ajax"]
+    automatic_crud/ ajax-app_name/ model_name / direct-delete / <int:id>/ [name="app_name-model_name-direct-delete-ajax"]
     automatic_crud/ ajax-app_name/ model_name / excel-report / [name="app_name-model_name-excel-report-ajax"]
 
 ```

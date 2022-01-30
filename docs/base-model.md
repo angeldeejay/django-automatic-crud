@@ -18,9 +18,9 @@ Aquí es donde se han definido las características principales de Django Automa
 ```python
 id = models.AutoField(primary_key = True)
 model_state = models.BooleanField(default = True)
-date_created = models.DateTimeField('Fecha de Creación', auto_now=False, auto_now_add=True)
-date_modified = models.DateTimeField('Fecha de Modificación', auto_now=True, auto_now_add=False)
-date_deleted = models.DateTimeField('Fecha de Eliminación', auto_now=True, auto_now_add=False)
+created_at = models.DateTimeField('Fecha de Creación', auto_now=False, auto_now_add=True)
+updated_at = models.DateTimeField('Fecha de Modificación', auto_now=True, auto_now_add=False)
+deleted_at = models.DateTimeField('Fecha de Eliminación', auto_now=True, auto_now_add=False)
 ```
 
 > model*state* es usado dentro de Django Automatic CRUD para la eliminación lógica.
@@ -30,13 +30,12 @@ Y los siguientes atributos:
     all_cruds_types = True
     normal_cruds = False
     ajax_crud = False
-    server_side = False
     exclude_model = False
     login_required = False
     permission_required = ()
     model_permissions = False
     default_permissions = False
-    exclude_fields = ['date_created','date_modified','date_deleted','model_state']
+    exclude_fields = ['created_at','updated_at','deleted_at','model_state']
 
     success_create_message = "registrado correctamente!"
     success_update_message = "actualizado correctamente!"
@@ -55,8 +54,7 @@ Y los siguientes atributos:
 
 - **all_cruds_types** - si su valor es `True` generará CRUDS de tipo: Normales y AJAX, en `False` no generará ningún CRUD.
 - **normal_cruds** - si _all_cruds_types_ es `True`, el valor de este campo no será tomado en cuenta, si _all_cruds_types_ es `False` y este campo es `True`, generará CRUDS de tipo `Normal`.
-- **ajax_crud** - si _all_cruds_types_ es `True`, el valor de este campo no será tomado en cuenta, si _all_cruds_types_ es `False` y este campo es `True`, generará CRUDS de tipo `AJAX`.
-- **server_side** - si su valor es `True` se realizará la paginación del lado del servidor, esto es válido sólo para _CRUDS de tipo AJAX_, retornará la siguiente estructura:
+- **ajax_cruds** - si _all_cruds_types_ es `True`, el valor de este campo no será tomado en cuenta, si _all_cruds_types_ es `False` y este campo es `True`, generará CRUDS de tipo `AJAX`.
 
         {
             'length': # número de registros,
@@ -68,7 +66,7 @@ Y los siguientes atributos:
 - **permission_required** - tupla de permisos a solicitarse para un usuario que realice la petición a cualquier ruta de Django Automatic CRUD sólo si _model_permission_ es `True`.
 - **model_permissions** - si su valor es `True`, solicitará permisos para el usuario que realice la petición.
 - **default_permissions** - si su valor es `True`, los permisos a solicitar serán los básicos de Django, es decir, add,change,view,delete.
-- **exclude_fields** - lista de campos excluidos, estos campos no serán tomados en cuenta para listar, editar, crear o cuando se obtenga el detalle de un registro. Por defecto los campos excluidos son los campos: `date_created,date_modified,date_deleted,model_state`.
+- **exclude_fields** - lista de campos excluidos, estos campos no serán tomados en cuenta para listar, editar, crear o cuando se obtenga el detalle de un registro. Por defecto los campos excluidos son los campos: `created_at,updated_at,deleted_at,model_state`.
 
 - **success_create_message** - mensaje por defecto mostrado cuando se realiza un nuevo registro del modelo. Este campo es concatenado con el nombre del modelo, es decir: `{model.__name__} success_create_message`, por ejemplo: `Persona registrada correctamente`. **Válido sólo para CRUDS AJAX**.
 - **success_update_message** - mensaje por defecto mostrado cuando se realiza una edición de un registro del modelo. Este campo es concatenado con el nombre del modelo, al igual que _success_create_message_. **Válido sólo para CRUDS AJAX**.

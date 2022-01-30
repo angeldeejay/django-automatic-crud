@@ -7,86 +7,51 @@ from django.core.serializers import serialize
 from django.views.generic import View
 
 from automatic_crud.generics import BaseCrud
-from automatic_crud.utils import get_object, get_form
+from automatic_crud.utils import get_object, get_form, normalize_model_structure
 from automatic_crud.response_messages import *
 
 
-class BaseListAJAX(BaseCrud):
+class BaseCrudAJAX(BaseCrud):
+    form_class = None
 
-    def get_queryset(self):
-        return self.model.objects.filter(model_state=True).filter(**self.get_query_string()).select_related().prefetch_related()
-
-    def get_server_side_queryset(self):
+    def _get_invalid_request_response(self):
         """
-        Returns the values as a dictionary ordered by the order_by attribute, 
-        by default order_by = id
+        Validate the current request and ensure if need authentication and 
+        permissions
 
         """
+        validations = [
+            # login required validation
+            self.validate_login_required,
+            # permission required validation
+            self.validate_permissions
+        ]
 
-        return self.model.objects.filter(model_state=True).filter(**self.get_query_string()).select_related().prefetch_related().order_by(f"{self.request.GET.get('order_by','id')}")
+        for validation in validations:
+            validation_required, validation_response = validation()
+            if validation_required:
+                return validation_response
 
-    def server_side(self):
-        """
-        Returns the paged query from the server excluding the fields that have been defined in 
-        self.model.exclude_fields.
+        return None
 
-        The follow attributes must be sent in request.GET:
-            start: element number where the page starts
-            end: element number where the page ends
-
-        The response structure is:
-
-            {
-                'length': # amount of records,
-                'objects': # list of records
-            }
-
-        For more information see: https://www.youtube.com/watch?v=89Ur7GCyLxI
-
-        """
-
-        start = int(self.request.GET.get('start', '0'))
-        end = int(self.request.GET.get('end', '10'))
-
-        object_list = []
-
-        temp_response = JSR({'data': self.data})
-        temp_data = temp_response.content.decode("UTF-8")
-        temp_data = ast.literal_eval(temp_data)
-        temp_data = json.loads(temp_data['data'])
-
-        for index, instance in enumerate(temp_data[start:start+end], start):
-            del instance['model']
-            for field in instance['fields']:
-                if field in self.model.exclude_fields:
-                    del instance['fields'][f'{field}']
-
-            instance['index'] = index + 1
-            object_list.append(instance)
-
-        self.data = {
-            'length': self.get_server_side_queryset().count(),
-            'objects': object_list
-        }
-        self.data = json.dumps(self.data)
-
-    def normalize_data(self):
+    def _normalize_data(self, is_list=False):
         """
         Generate an HttpResponse instance to get the serialized query and 
         delete the ['model'] key from the dictionary and convert the dictionary 
         to json and save on self.data
 
         """
-
         temp_response = JSR({'data': self.data})
         temp_data = temp_response.content.decode("UTF-8")
         temp_data = ast.literal_eval(temp_data)
         temp_data = json.loads(temp_data['data'])
-        for item in temp_data:
-            del item['model']
-        self.data = json.dumps(temp_data)
+        object_list: list = []
+        for instance in temp_data:
+            instance = normalize_model_structure(self.model, instance)
+            object_list.append(instance)
+        self.data = json.dumps(object_list if is_list else object_list.pop())
 
-    def get_query_string(self):
+    def _get_query_string(self):
         """
         Generate a dictionary with query string matching model fields
 
@@ -100,241 +65,207 @@ class BaseListAJAX(BaseCrud):
 
         return valid_query_dict
 
+
+class BaseListAJAX(BaseCrudAJAX):
+    def get_queryset(self):
+        """
+        Returns the values as a dictionary ordered by the order_by attribute, 
+        by default order_by = id
+
+        """
+        return self.model.objects.filter(model_state=True).filter(**self._get_query_string()).select_related().prefetch_related().order_by(f"{self.request.GET.get('order_by','id')}")
+
+    def __paginate(self, limit, offset):
+        """
+        Returns the paged query from the server.
+
+        """
+        self.data = serialize('json', self.get_queryset()[offset:limit],
+                              fields=self.get_fields_for_model(),
+                              use_natural_foreign_keys=True)
+        self._normalize_data(is_list=True)
+        self.data = json.dumps({
+            'length': self.get_queryset().count(),
+            'objects': json.loads(self.data)
+        })
+
     def get(self, request, model, *args, **kwargs):
         """
         Return data of model
 
-        If self.model.server_side == True return Paginated Data
-        else return No Paginated Data
+        The follow attributes can be sent in request.GET:
+            paginate: results should be paginated
+            offset: element number where the page starts
+            limit: number of record to resolve
+
+        The response structure when results are being paginated is:
+
+            {
+                'length': # amount of records in resultset,
+                'objects': # list of records in current page
+            }
+
+        In the other case, a plain list will be returned:
+
+            [
+                ... # list of all records
+            ]
 
         """
-
         self.model = model
 
-        # login required validation
-        validation_login_required, response = self.validate_login_required()
-        if validation_login_required:
-            return response
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
 
-        # permission required validation
-        validation_permissions, response = self.validate_permissions()
-        if validation_permissions:
-            return response
+        self.get_queryset()
+        self.data = serialize('json', self.get_queryset(),
+                              fields=self.get_fields_for_model(),
+                              use_natural_foreign_keys=True)
 
-        if self.model.server_side:
-            self.data = serialize('json', self.get_server_side_queryset(),
-                                  fields=self.get_fields_for_model(),
-                                  use_natural_foreign_keys=True)
-            self.server_side()
+        if 'paginate' in self.request.GET:
+            limit = int(self.request.GET.get('limit', '10'))
+            offset = int(self.request.GET.get('offset', '0'))
+            self.__paginate(limit, offset)
         else:
             self.data = serialize('json', self.get_queryset(),
                                   fields=self.get_fields_for_model(),
                                   use_natural_foreign_keys=True)
-            self.normalize_data()
+            self._normalize_data(is_list=True)
+
         return HttpResponse(self.data, content_type="application/json")
 
 
-class BaseCreateAJAX(BaseCrud):
-    model = None
-    form_class = None
-
+class BaseCreateAJAX(BaseCrudAJAX):
     def post(self, request, model, form=None, *args, **kwargs):
         self.model = model
 
-        # login required validation
-        validation_login_required, response = self.validate_login_required()
-        if validation_login_required:
-            return response
-
-        # permission required validation
-        validation_permissions, response = self.validate_permissions()
-        if validation_permissions:
-            return response
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
 
         self.form_class = get_form(form, self.model)
         form = self.form_class(request.POST, request.FILES)
         if form.is_valid():
             instance = form.save()
-            data = serialize(
-                'json', [form.instance, ],
+            self.data = serialize(
+                'json', [instance, ],
                 fields=self.get_fields_for_model(),
                 use_natural_foreign_keys=True,
                 use_natural_primary_keys=True
-            ) if instance is not None and instance.pk is not None else None
-            return success_create_message(self.model, data)
+            ) if instance is not None and instance.id is not None else None
+            self._normalize_data()
+            return success_create_message(self.model, self.data)
         return error_create_message(self.model, form)
 
 
-class BaseDetailAJAX(BaseCrud):
-
-    data = None
-
-    def normalize_data(self):
-        """
-        Generate an HttpResponse instance to get the serialized query and 
-        delete the ['model'] key from the dictionary and convert the dictionary 
-        to json and save on self.data
-
-        """
-        temp_response = JSR({'data': self.data})
-        temp_data = temp_response.content.decode("UTF-8")
-        temp_data = ast.literal_eval(temp_data)
-        temp_data = json.loads(temp_data['data'])
-        for item in temp_data:
-            del item['model']
-            self.data = json.dumps(item)
-
+class BaseDetailAJAX(BaseCrudAJAX):
     def get(self, request, model, *args, **kwargs):
         self.model = model
 
-        # login required validation
-        validation_login_required, response = self.validate_login_required()
-        if validation_login_required:
-            return response
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
 
-        # permission required validation
-        validation_permissions, response = self.validate_permissions()
-        if validation_permissions:
-            return response
-
-        self.data = get_object(self.model, self.kwargs['pk'])
-        if self.data is not None:
+        instance = get_object(self.model, self.kwargs['id'])
+        if instance is not None:
             self.data = serialize(
-                'json', [self.data, ],
+                'json', [instance, ],
                 fields=self.get_fields_for_model(),
                 use_natural_foreign_keys=True,
                 use_natural_primary_keys=True
             )
-            self.normalize_data()
+            self._normalize_data()
             return HttpResponse(self.data, content_type="application/json")
         return not_found_message(self.model)
 
 
-class BaseUpdateAJAX(BaseCrud):
-    model = None
-    form_class = None
-    data = None
-
-    def normalize_data(self):
-        """
-        Generate an HttpResponse instance to get the serialized query and 
-        delete the ['model'] key from the dictionary and convert the dictionary 
-        to json and save on self.data
-
-        """
-        temp_response = JSR({'data': self.data})
-        temp_data = temp_response.content.decode("UTF-8")
-        temp_data = ast.literal_eval(temp_data)
-        temp_data = json.loads(temp_data['data'])
-        for item in temp_data:
-            del item['model']
-            self.data = json.dumps(item)
-
+class BaseUpdateAJAX(BaseCrudAJAX):
     def get(self, request, model, *args, **kwargs):
         self.model = model
 
-        # login required validation
-        validation_login_required, response = self.validate_login_required()
-        if validation_login_required:
-            return response
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
 
-        # permission required validation
-        validation_permissions, response = self.validate_permissions()
-        if validation_permissions:
-            return response
-
-        self.data = get_object(self.model, self.kwargs['pk'])
+        instance = get_object(self.model, self.kwargs['id'])
         if self.data is not None:
             self.data = serialize(
-                'json', [self.data, ],
+                'json', [instance, ],
                 fields=self.get_fields_for_model(),
                 use_natural_foreign_keys=True,
                 use_natural_primary_keys=True
             )
-            self.normalize_data()
+            self._normalize_data()
             return HttpResponse(self.data, content_type="application/json")
         return not_found_message(self.model)
 
     def post(self, request, model, form=None, *args, **kwargs):
         self.model = model
 
-        # login required validation
-        validation_login_required, response = self.validate_login_required()
-        if validation_login_required:
-            return response
-
-        # permission required validation
-        validation_permissions, response = self.validate_permissions()
-        if validation_permissions:
-            return response
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
 
         self.form_class = get_form(form, self.model)
-        instance = get_object(self.model, self.kwargs['pk'])
+        instance = get_object(self.model, self.kwargs['id'])
         if instance is not None:
             form = self.form_class(
                 request.POST, request.FILES, instance=instance)
             if form.is_valid():
                 instance = form.save()
-                data = serialize(
+                self.data = serialize(
                     'json', [instance, ],
                     fields=self.get_fields_for_model(),
                     use_natural_foreign_keys=True,
                     use_natural_primary_keys=True
-                ) if instance is not None and instance.pk is not None else None
-                return success_update_message(self.model, data)
+                ) if instance is not None and instance.id is not None else None
+                self._normalize_data()
+                return success_update_message(self.model, self.data)
             else:
                 return error_update_message(self.model, form)
         return not_found_message(self.model)
 
 
-class BaseDirectDeleteAJAX(BaseCrud):
-    model = None
-
+class BaseDeleteAJAX(BaseCrudAJAX):
     def delete(self, request, model, *args, **kwargs):
         self.model = model
 
-        # login required validation
-        validation_login_required, response = self.validate_login_required()
-        if validation_login_required:
-            return response
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
 
-        # permission required validation
-        validation_permissions, response = self.validate_permissions()
-        if validation_permissions:
-            return response
-
-        instance = get_object(self.model, self.kwargs['pk'])
+        instance = get_object(self.model, self.kwargs['id'])
         if instance is not None:
             instance.delete()
-            data = serialize(
+            self.data = serialize(
                 'json', [instance, ],
                 fields=self.get_fields_for_model(),
                 use_natural_foreign_keys=True,
                 use_natural_primary_keys=True
             )
-            return success_delete_message(self.model, data)
+            self._normalize_data()
+            return success_delete_message(self.model, self.data)
         return not_found_message(self.model)
 
 
-class BaseLogicDeleteAJAX(BaseCrud):
-    model = None
-
+class BaseSoftDeleteAJAX(BaseCrud):
     def delete(self, request, model, *args, **kwargs):
         self.model = model
 
-        # login required validation
-        validation_login_required, response = self.validate_login_required()
-        if validation_login_required:
-            return response
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
 
-        # permission required validation
-        validation_permissions, response = self.validate_permissions()
-        if validation_permissions:
-            return response
-
-        instance = get_object(self.model, self.kwargs['pk'])
+        instance = get_object(self.model, self.kwargs['id'])
         if instance is not None:
-            self.model.objects.filter(
-                id=self.kwargs['pk']).update(model_state=False)
-            return success_delete_message(self.model)
+            instance = instance.update(model_state=False)
+            self.data = serialize(
+                'json', [instance, ],
+                fields=self.get_fields_for_model(),
+                use_natural_foreign_keys=True,
+                use_natural_primary_keys=True
+            )
+            self._normalize_data()
+            return success_delete_message(self.model, self.data)
         return not_found_message(self.model)

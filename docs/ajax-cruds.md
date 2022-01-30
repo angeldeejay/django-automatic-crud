@@ -28,7 +28,7 @@ Retornará los datos paginados y sólo aquellos cuyo campo `model_state` sea `Tr
             "length": 6,
             "objects": [
                 {
-                    "pk": 1,
+                    "id": 1,
                     "fields":{
                         "name": "abarrote",
                         "modal_state": true,
@@ -36,7 +36,7 @@ Retornará los datos paginados y sólo aquellos cuyo campo `model_state` sea `Tr
                     "index": 1
                 },
                 {
-                    "pk": 1,
+                    "id": 1,
                     "fields":{
                         "name": "carro",
                         "modal_state": true,
@@ -72,14 +72,14 @@ Retornará todos los registros del modelo que se encuentren en la Base de Datos 
 
         [
             {
-                "pk": 1,
+                "id": 1,
                 "fields": {
                     "model_state": true,
                     "name": "abarrote"
                 }
             },
             {
-                "pk": 2,
+                "id": 2,
                 "fields": {
                     "model_state": true,
                     "name": "carro"
@@ -162,7 +162,7 @@ Retorna la información del objeto en formato JSON.
     Ejemplo
 
         {
-            "pk": 1,
+            "id": 1,
             "fields": {
                 "model_state": true,
                 "name": "abarrote"
@@ -228,10 +228,10 @@ def get_update_form(self,form = None):
 
 Siempre deberá importar el form personalizado **dentro de la función**, nunca fuera de ella, esto para evitar un error conocido como `Importación Circular`.
 
-## BaseDirectDeleteAJAX
+## BaseDeleteAJAX
 
 ```python
-class BaseDirectDeleteAJAX(BaseCrud):
+class BaseDeleteAJAX(BaseCrud):
     pass
 ```
 
@@ -254,10 +254,10 @@ La respuesta dependerá de si se encontró o no el objeto que se desea eliminar.
             "error": "No se ha encontrado un registro con estos datos."
         }
 
-## BaseLogicDeleteAJAX
+## BaseSoftDeleteAJAX
 
 ```python
-class BaseLogicDeleteAJAX(BaseCrud):
+class BaseSoftDeleteAJAX(BaseCrud):
     pass
 ```
 

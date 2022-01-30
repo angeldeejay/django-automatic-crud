@@ -36,7 +36,7 @@ sea ``True`` con la siguiente estructura por página:
             "length": 6,
             "objects": [
                 {
-                    "pk": 1,
+                    "id": 1,
                     "fields":{
                         "name": "abarrote",
                         "modal_state": true,
@@ -44,7 +44,7 @@ sea ``True`` con la siguiente estructura por página:
                     "index": 1
                 },
                 {
-                    "pk": 1,
+                    "id": 1,
                     "fields":{
                         "name": "carro",
                         "modal_state": true,
@@ -89,14 +89,14 @@ Datos cuyo campo ``model_state`` sea ``True``.
 
         [
             {
-                "pk": 1,
+                "id": 1,
                 "fields": {
                     "model_state": true,
                     "name": "abarrote"
                 }
             },
             {
-                "pk": 2,
+                "id": 2,
                 "fields": {
                     "model_state": true,
                     "name": "carro"
@@ -200,7 +200,7 @@ Retorna la información del objeto en formato JSON.
     Ejemplo
 
         {
-            "pk": 1,
+            "id": 1,
             "fields": {
                 "model_state": true,
                 "name": "abarrote"
@@ -281,12 +281,12 @@ Siempre deberá importar el form personalizado **dentro de la función**,
 nunca fuera de ella, esto para evitar un error conocido como
 ``Importación Circular``.
 
-BaseDirectDeleteAJAX
+BaseDeleteAJAX
 --------------------
 
 .. code:: python
 
-    class BaseDirectDeleteAJAX(BaseCrud):
+    class BaseDeleteAJAX(BaseCrud):
         pass
 
 Vista Basada en Clase encargada de realizar la eliminación directa en la
@@ -313,12 +313,12 @@ eliminar.
             "error": "No se ha encontrado un registro con estos datos."
         }
 
-BaseLogicDeleteAJAX
+BaseSoftDeleteAJAX
 -------------------
 
 .. code:: python
 
-    class BaseLogicDeleteAJAX(BaseCrud):
+    class BaseSoftDeleteAJAX(BaseCrud):
         pass
 
 Vista Basada en Clase encargada de realizar la eliminación lógica de un

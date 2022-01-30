@@ -98,7 +98,7 @@ class BaseDetail(BaseCrudMixin,DetailView):
 
     def get_context_data(self, **kwargs):
         context = {}
-        context['object'] = get_object(self.model,self.kwargs['pk'])
+        context['object'] = get_object(self.model,self.kwargs['id'])
         return context  
 
     def get(self,request,form = None,*args,**kwargs):
@@ -122,14 +122,14 @@ class BaseUpdate(BaseCrudMixin,UpdateView):
     
     def get_context_data(self, **kwargs):
         context = {}
-        context['object'] = get_object(self.model,self.kwargs['pk'])
+        context['object'] = get_object(self.model,self.kwargs['id'])
         return context    
 
     def get(self,request,form = None,*args,**kwargs):
         self.template_name = build_template_name(self.template_name,self.model,'update')
         
         form = get_form(form,self.model)
-        form = form(instance = get_object(self.model,self.kwargs['pk']))
+        form = form(instance = get_object(self.model,self.kwargs['id']))
         
         context = self.get_context_data()
         if context['object'] == None:
@@ -138,11 +138,11 @@ class BaseUpdate(BaseCrudMixin,UpdateView):
         context['form'] = form
         return render(request,self.template_name,context)
 
-    def post(self,request,form = None,*args,**kwargs):
+    def put(self,request,form = None,*args,**kwargs):
         self.template_name = build_template_name(self.template_name,self.model,'list')
         form = get_form(form,self.model)
         
-        instance = get_object(self.model,self.kwargs['pk'])
+        instance = get_object(self.model,self.kwargs['id'])
         if instance is not None:
             if self.form_class == None:
                 form = form(request.POST,request.FILES, instance = instance)
@@ -190,10 +190,10 @@ class BaseLogicDelete(BaseCrudMixin,DeleteView):
         return super().dispatch(request, *args, **kwargs)
 
     def delete(self,request,*args,**kwargs):
-        instance = get_object(self.model,self.kwargs['pk'])
+        instance = get_object(self.model,self.kwargs['id'])
         
         if instance is not None:
-            self.model.objects.filter(id = self.kwargs['pk']).update(model_state = False)
+            self.model.objects.filter(id = self.kwargs['id']).update(model_state = False)
             return redirect(self.success_url)        
         else:
             return redirect(self.success_url)

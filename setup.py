@@ -1,5 +1,7 @@
+import atexit
 import os
-from setuptools import setup
+from setuptools import setup, find_packages
+from setuptools.command.install import install
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -7,18 +9,21 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name='django-automatic-crud',
-    version='1.2.0',
-    packages=['automatic_crud'],
+    version='2.0.0',
+    packages=find_packages(),
+    package_data={
+        'automatic_crud': ['locale/*/LC_MESSAGES/*.mo', ]
+    },
     include_package_data=True,
     license='BSD License',
-    description='CRUDS Automáticos con Django',
+    description='Django Automatic CRUDs',
     long_description=long_description,
     long_description_content_type="text/markdown",
     url='https://github.com/developerpe/django-automatic-crud',
-    author='Oliver Sandoval',
-    author_email='developerpeperu@gmail.com',
+    author='Oliver Sandoval, Andrés Vanegas',
+    author_email='developerpeperu@gmail.com, wandres.vanegas@gmail.com',
     install_requires=[
-        'Django>=2.2',
+        'Django>=3.0',
         'openpyxl==3.0.7',
     ],
     classifiers=[

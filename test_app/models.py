@@ -10,9 +10,8 @@ class Category(BaseModel):
     # TODO: Define fields here
     name = models.CharField('Nombre de Categoría', max_length=150)    
 
-    exclude_fields = ['date_created','date_modified','date_deleted']
+    exclude_fields = ['created_at','updated_at','deleted_at']
     exclude_model = False
-    server_side = True
     login_required = False
     model_permissions = False
     default_permissions = True
