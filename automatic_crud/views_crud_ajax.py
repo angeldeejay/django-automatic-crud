@@ -145,7 +145,7 @@ class BaseCreateAJAX(BaseCrudAJAX):
             return invalid_request_response
 
         self.form_class = get_form(form, self.model)
-        form = self.form_class(request.POST, request.FILES)
+        form = self.form_class(json.loads(request.body), request.FILES)
         if form.is_valid():
             instance = form.save()
             self.data = serialize(
@@ -200,7 +200,7 @@ class BaseUpdateAJAX(BaseCrudAJAX):
             return HttpResponse(self.data, content_type="application/json")
         return not_found_message(self.model)
 
-    def post(self, request, model, form=None, *args, **kwargs):
+    def put(self, request, model, form=None, *args, **kwargs):
         self.model = model
 
         invalid_request_response = self._get_invalid_request_response()
@@ -211,7 +211,7 @@ class BaseUpdateAJAX(BaseCrudAJAX):
         instance = get_object(self.model, self.kwargs['id'])
         if instance is not None:
             form = self.form_class(
-                request.POST, request.FILES, instance=instance)
+                json.loads(request.body), request.FILES, instance=instance)
             if form.is_valid():
                 instance = form.save()
                 self.data = serialize(
