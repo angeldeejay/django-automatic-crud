@@ -1,7 +1,9 @@
 from typing import Dict, List
+from webbrowser import get
 from django.apps import apps
 from django.forms import models
 from automatic_crud.data_types import Instance, DjangoForm
+from django.db.models.fields.reverse_related import ManyToManyRel, ManyToOneRel
 
 
 def get_model(__app_name: str, __model_name: str) -> Instance:
@@ -59,11 +61,16 @@ def normalize_model_structure(model, instance) -> dict:
     if issubclass(model, BaseModel):
         model: BaseModel = model
 
+
     normalized_instance = {
-        # Fallback
-        'id': instance['pk'] if 'pk' in instance.keys() else instance['id'],
+        'id': instance['id'] if 'id' in instance.keys() else instance['pk']
     }
-    for field in instance['fields']:
-        if field not in model.exclude_fields:
-            normalized_instance[f'{field}'] = instance['fields'][f'{field}']
+    
+    excluded = model.exclude_fields + ['id'] 
+    # Fallback
+    for f in model._meta.get_fields():
+        if isinstance(f, ManyToManyRel) or isinstance(f, ManyToOneRel) or f.name in excluded or f.name not in instance['fields'].keys():
+            continue
+        normalized_instance[f.name] = instance['fields'][f.name]
+
     return normalized_instance

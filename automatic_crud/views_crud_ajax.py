@@ -1,6 +1,7 @@
 import json
 import ast
 
+from rest_framework import serializers
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse as JSR
 from django.core.serializers import serialize
@@ -16,7 +17,7 @@ class BaseCrudAJAX(BaseCrud):
 
     def _get_invalid_request_response(self):
         """
-        Validate the current request and ensure if need authentication and 
+        Validate the current request and ensure if need authentication and
         permissions
 
         """
@@ -36,8 +37,8 @@ class BaseCrudAJAX(BaseCrud):
 
     def _normalize_data(self, is_list=False):
         """
-        Generate an HttpResponse instance to get the serialized query and 
-        delete the ['model'] key from the dictionary and convert the dictionary 
+        Generate an HttpResponse instance to get the serialized query and
+        delete the ['model'] key from the dictionary and convert the dictionary
         to json and save on self.data
 
         """
@@ -56,7 +57,7 @@ class BaseCrudAJAX(BaseCrud):
         Generate a dictionary with query string matching model fields
 
         """
-        fields = self.get_fields_for_model()
+        fields = [f.name for f in self.model._meta.fields]
         received_query_dict = self.request.GET.dict()
         valid_query_dict = {}
         for k, v in received_query_dict.items():
@@ -69,11 +70,19 @@ class BaseCrudAJAX(BaseCrud):
 class BaseListAJAX(BaseCrudAJAX):
     def get_queryset(self):
         """
-        Returns the values as a dictionary ordered by the order_by attribute, 
+        Returns the values as a dictionary ordered by the order_by attribute,
         by default order_by = id
 
         """
-        return self.model.objects.filter(model_state=True).filter(**self._get_query_string()).select_related().prefetch_related().order_by(f"{self.request.GET.get('order_by','id')}")
+        filters: dict = {"model_state": True}
+        for k, v in self._get_query_string().items():
+            filters[k] = v
+
+        return self.model.objects\
+            .filter(**filters)\
+            .select_related(*self.model.preloads)\
+            .prefetch_related(*self.model.preloads)\
+            .order_by(f"{self.request.GET.get('order_by','id')}")
 
     def __paginate(self, limit, offset):
         """
@@ -81,7 +90,7 @@ class BaseListAJAX(BaseCrudAJAX):
 
         """
         self.data = serialize('json', self.get_queryset()[offset:limit],
-                              fields=self.get_fields_for_model(),
+                              fields=self.get_fields_for_model() + self.model.preloads,
                               use_natural_foreign_keys=True)
         self._normalize_data(is_list=True)
         self.data = json.dumps({
@@ -117,10 +126,10 @@ class BaseListAJAX(BaseCrudAJAX):
         invalid_request_response = self._get_invalid_request_response()
         if invalid_request_response is not None:
             return invalid_request_response
+        
 
-        self.get_queryset()
         self.data = serialize('json', self.get_queryset(),
-                              fields=self.get_fields_for_model(),
+                              fields=self.get_fields_for_model() + self.model.preloads,
                               use_natural_foreign_keys=True)
 
         if 'paginate' in self.request.GET:
@@ -129,7 +138,7 @@ class BaseListAJAX(BaseCrudAJAX):
             self.__paginate(limit, offset)
         else:
             self.data = serialize('json', self.get_queryset(),
-                                  fields=self.get_fields_for_model(),
+                                  fields=self.get_fields_for_model() + self.model.preloads,
                                   use_natural_foreign_keys=True)
             self._normalize_data(is_list=True)
 
@@ -151,8 +160,7 @@ class BaseCreateAJAX(BaseCrudAJAX):
             self.data = serialize(
                 'json', [instance, ],
                 fields=self.get_fields_for_model(),
-                use_natural_foreign_keys=True,
-                use_natural_primary_keys=True
+                use_natural_foreign_keys=True
             ) if instance is not None and instance.id is not None else None
             self._normalize_data()
             return success_create_message(self.model, self.data)
@@ -172,8 +180,7 @@ class BaseDetailAJAX(BaseCrudAJAX):
             self.data = serialize(
                 'json', [instance, ],
                 fields=self.get_fields_for_model(),
-                use_natural_foreign_keys=True,
-                use_natural_primary_keys=True
+                use_natural_foreign_keys=True
             )
             self._normalize_data()
             return HttpResponse(self.data, content_type="application/json")
@@ -193,8 +200,7 @@ class BaseUpdateAJAX(BaseCrudAJAX):
             self.data = serialize(
                 'json', [instance, ],
                 fields=self.get_fields_for_model(),
-                use_natural_foreign_keys=True,
-                use_natural_primary_keys=True
+                use_natural_foreign_keys=True
             )
             self._normalize_data()
             return HttpResponse(self.data, content_type="application/json")
@@ -217,8 +223,7 @@ class BaseUpdateAJAX(BaseCrudAJAX):
                 self.data = serialize(
                     'json', [instance, ],
                     fields=self.get_fields_for_model(),
-                    use_natural_foreign_keys=True,
-                    use_natural_primary_keys=True
+                    use_natural_foreign_keys=True
                 ) if instance is not None and instance.id is not None else None
                 self._normalize_data()
                 return success_update_message(self.model, self.data)
@@ -241,8 +246,7 @@ class BaseDeleteAJAX(BaseCrudAJAX):
             self.data = serialize(
                 'json', [instance, ],
                 fields=self.get_fields_for_model(),
-                use_natural_foreign_keys=True,
-                use_natural_primary_keys=True
+                use_natural_foreign_keys=True
             )
             self._normalize_data()
             return success_delete_message(self.model, self.data)
@@ -263,8 +267,7 @@ class BaseSoftDeleteAJAX(BaseCrud):
             self.data = serialize(
                 'json', [instance, ],
                 fields=self.get_fields_for_model(),
-                use_natural_foreign_keys=True,
-                use_natural_primary_keys=True
+                use_natural_foreign_keys=True
             )
             self._normalize_data()
             return success_delete_message(self.model, self.data)

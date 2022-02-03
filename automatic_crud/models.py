@@ -2,13 +2,13 @@ from django.db import models
 from django.urls import path, reverse_lazy
 from django.contrib.auth.decorators import login_required
 from django.utils.translation import gettext_lazy as _
+from django.db.models.fields.reverse_related import ManyToManyRel, ManyToOneRel
 
 from automatic_crud.utils import get_model
 from automatic_crud.data_types import *
 from automatic_crud.base_report import GetExcelReport
 from automatic_crud.views_crud import *
 from automatic_crud.views_crud_ajax import *
-
 
 
 class BaseModel(models.Model):
@@ -38,6 +38,7 @@ class BaseModel(models.Model):
     default_permissions = False
 
     exclude_fields = ['model_state']
+    preloads = []
 
     success_create_message = _('SUCCESS_CREATE_MESSAGE')
     success_update_message = _('SUCCESS_UPDATE_MESSAGE')
@@ -55,6 +56,14 @@ class BaseModel(models.Model):
     class Meta:
         """Meta definition for BaseModel."""
         abstract = True
+
+    def natural_key(self):
+        output = {'id': self.id}
+        for f in self.__class__._meta.get_fields():
+            if isinstance(f, ManyToManyRel) or isinstance(f, ManyToOneRel):
+                continue
+            output[f.name] = getattr(self, f.name)
+        return output
 
     def get_create_form(self, form=None):
         if form != None:
