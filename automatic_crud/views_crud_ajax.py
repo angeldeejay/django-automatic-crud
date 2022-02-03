@@ -1,7 +1,6 @@
 import json
 import ast
 
-from rest_framework import serializers
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse as JSR
 from django.core.serializers import serialize
@@ -89,7 +88,7 @@ class BaseListAJAX(BaseCrudAJAX):
         Returns the paged query from the server.
 
         """
-        self.data = serialize('json', self.get_queryset()[offset:limit],
+        self.data = serialize('entity_json', self.get_queryset()[offset:limit],
                               fields=self.get_fields_for_model() + self.model.preloads,
                               use_natural_foreign_keys=True)
         self._normalize_data(is_list=True)
@@ -128,7 +127,7 @@ class BaseListAJAX(BaseCrudAJAX):
             return invalid_request_response
         
 
-        self.data = serialize('json', self.get_queryset(),
+        self.data = serialize('entity_json', self.get_queryset(),
                               fields=self.get_fields_for_model() + self.model.preloads,
                               use_natural_foreign_keys=True)
 
@@ -137,7 +136,7 @@ class BaseListAJAX(BaseCrudAJAX):
             offset = int(self.request.GET.get('offset', '0'))
             self.__paginate(limit, offset)
         else:
-            self.data = serialize('json', self.get_queryset(),
+            self.data = serialize('entity_json', self.get_queryset(),
                                   fields=self.get_fields_for_model() + self.model.preloads,
                                   use_natural_foreign_keys=True)
             self._normalize_data(is_list=True)
@@ -158,7 +157,7 @@ class BaseCreateAJAX(BaseCrudAJAX):
         if form.is_valid():
             instance = form.save()
             self.data = serialize(
-                'json', [instance, ],
+                'entity_json', [instance, ],
                 fields=self.get_fields_for_model(),
                 use_natural_foreign_keys=True
             ) if instance is not None and instance.id is not None else None
@@ -178,7 +177,7 @@ class BaseDetailAJAX(BaseCrudAJAX):
         instance = get_object(self.model, self.kwargs['id'])
         if instance is not None:
             self.data = serialize(
-                'json', [instance, ],
+                'entity_json', [instance, ],
                 fields=self.get_fields_for_model(),
                 use_natural_foreign_keys=True
             )
@@ -198,7 +197,7 @@ class BaseUpdateAJAX(BaseCrudAJAX):
         instance = get_object(self.model, self.kwargs['id'])
         if self.data is not None:
             self.data = serialize(
-                'json', [instance, ],
+                'entity_json', [instance, ],
                 fields=self.get_fields_for_model(),
                 use_natural_foreign_keys=True
             )
@@ -221,7 +220,7 @@ class BaseUpdateAJAX(BaseCrudAJAX):
             if form.is_valid():
                 instance = form.save()
                 self.data = serialize(
-                    'json', [instance, ],
+                    'entity_json', [instance, ],
                     fields=self.get_fields_for_model(),
                     use_natural_foreign_keys=True
                 ) if instance is not None and instance.id is not None else None
@@ -244,7 +243,7 @@ class BaseDeleteAJAX(BaseCrudAJAX):
         if instance is not None:
             instance.delete()
             self.data = serialize(
-                'json', [instance, ],
+                'entity_json', [instance, ],
                 fields=self.get_fields_for_model(),
                 use_natural_foreign_keys=True
             )
@@ -265,7 +264,7 @@ class BaseSoftDeleteAJAX(BaseCrud):
         if instance is not None:
             instance = instance.update(model_state=False)
             self.data = serialize(
-                'json', [instance, ],
+                'entity_json', [instance, ],
                 fields=self.get_fields_for_model(),
                 use_natural_foreign_keys=True
             )

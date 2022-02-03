@@ -1,9 +1,11 @@
 from typing import Dict, List
 from webbrowser import get
+
 from django.apps import apps
-from django.forms import models
-from automatic_crud.data_types import Instance, DjangoForm
 from django.db.models.fields.reverse_related import ManyToManyRel, ManyToOneRel
+from django.forms import models
+
+from automatic_crud.data_types import Instance, DjangoForm
 
 
 def get_model(__app_name: str, __model_name: str) -> Instance:
@@ -74,3 +76,4 @@ def normalize_model_structure(model, instance) -> dict:
         normalized_instance[f.name] = instance['fields'][f.name]
 
     return normalized_instance
+

@@ -2,6 +2,7 @@ from django.db import models
 from django.urls import path, reverse_lazy
 from django.contrib.auth.decorators import login_required
 from django.utils.translation import gettext_lazy as _
+from django.db.models.fields.related import ForeignKey
 from django.db.models.fields.reverse_related import ManyToManyRel, ManyToOneRel
 
 from automatic_crud.utils import get_model
@@ -57,12 +58,18 @@ class BaseModel(models.Model):
         """Meta definition for BaseModel."""
         abstract = True
 
-    def natural_key(self):
+    def natural_key(self, stop=False) -> dict:
         output = {'id': self.id}
         for f in self.__class__._meta.get_fields():
+            # Reverse relationships
             if isinstance(f, ManyToManyRel) or isinstance(f, ManyToOneRel):
                 continue
-            output[f.name] = getattr(self, f.name)
+            # Direct relationships
+            elif isinstance(f, ForeignKey):
+                output[f.name] = getattr(self, f.attname)
+            # Model fields
+            else:
+                output[f.name] = getattr(self, f.name)
         return output
 
     def get_create_form(self, form=None):
