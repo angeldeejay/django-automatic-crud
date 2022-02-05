@@ -59,13 +59,14 @@ class BaseCrudAJAX(BaseCrud):
         """
         received_query_dict = self.request.GET.dict()
         valid_query_dict = {}
-        
+
         for f in self.model._meta.fields:
             if f.name not in received_query_dict.keys():
                 continue
 
             if isinstance(f, BooleanField):
-                valid_query_dict[f.name] = str(received_query_dict[f.name]).lower() == 'true'
+                valid_query_dict[f.name] = str(
+                    received_query_dict[f.name]).lower() == 'true'
             else:
                 valid_query_dict[f.name] = received_query_dict[f.name]
 
@@ -190,24 +191,6 @@ class BaseDetailAJAX(BaseCrudAJAX):
 
 
 class BaseUpdateAJAX(BaseCrudAJAX):
-    def get(self, request, model, *args, **kwargs):
-        self.model = model
-
-        invalid_request_response = self._get_invalid_request_response()
-        if invalid_request_response is not None:
-            return invalid_request_response
-
-        instance = get_object(self.model, self.kwargs['id'])
-        if self.data is not None:
-            self.data = serialize(
-                'entity_json', [instance, ],
-                fields=self.get_fields_for_model(),
-                use_natural_foreign_keys=True
-            )
-            self._normalize_data()
-            return HttpResponse(self.data, content_type="application/json")
-        return not_found_message(self.model)
-
     def put(self, request, model, form=None, *args, **kwargs):
         self.model = model
 
@@ -231,6 +214,28 @@ class BaseUpdateAJAX(BaseCrudAJAX):
                 return success_update_message(self.model, self.data)
             else:
                 return error_update_message(self.model, form)
+        return not_found_message(self.model)
+
+
+class BaseRestoreAJAX(BaseCrudAJAX):
+    def put(self, request, model, form=None, *args, **kwargs):
+        self.model = model
+
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
+
+        instance = get_object(self.model, self.kwargs['id'], force=True)
+        if instance is not None:
+            instance.model_state = True
+            instance.save(force_update=True)
+            self.data = serialize(
+                'entity_json', [instance, ],
+                fields=self.get_fields_for_model(),
+                use_natural_foreign_keys=True
+            ) if instance is not None and instance.id is not None else None
+            self._normalize_data()
+            return success_update_message(self.model, self.data)
         return not_found_message(self.model)
 
 

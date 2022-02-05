@@ -13,9 +13,13 @@ def get_model(__app_name: str, __model_name: str) -> Instance:
     return apps.get_model(app_label=__app_name, model_name=__model_name)
 
 
-def get_object(model: Instance, id: int):
+def get_object(model: Instance, id: int, force=False):
     # return the record for a id sended
-    instance = model.objects.filter(id=id, model_state=True).first()
+    instance = False
+    if force:
+        instance = model.objects.filter(id=id).first()
+    else:
+        instance = model.objects.filter(id=id, model_state=True).first()
     if instance:
         return instance
     return None
@@ -63,12 +67,11 @@ def normalize_model_structure(model, instance) -> dict:
     if issubclass(model, BaseModel):
         model: BaseModel = model
 
-
     normalized_instance = {
         'id': instance['id'] if 'id' in instance.keys() else instance['pk']
     }
-    
-    excluded = model.exclude_fields + ['id'] 
+
+    excluded = model.exclude_fields + ['id']
     # Fallback
     for f in model._meta.get_fields():
         if isinstance(f, ManyToManyRel) or isinstance(f, ManyToOneRel) or f.name in excluded or f.name not in instance['fields'].keys():
@@ -76,4 +79,3 @@ def normalize_model_structure(model, instance) -> dict:
         normalized_instance[f.name] = instance['fields'][f.name]
 
     return normalized_instance
-

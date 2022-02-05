@@ -93,6 +93,9 @@ class BaseModel(models.Model):
     def get_list_url(self):
         return "{0}/list/".format(self._meta.object_name.lower())
 
+    def get_restore_url(self):
+        return "{0}/restore/<int:id>/".format(self._meta.object_name.lower())
+
     def get_direct_delete_url(self):
         return "{0}/delete/<int:id>/".format(self._meta.object_name.lower())
 
@@ -116,6 +119,9 @@ class BaseModel(models.Model):
 
     def get_alias_logic_delete_url(self):
         return "{0}-{1}-soft-delete".format(self._meta.app_label, self._meta.object_name.lower())
+
+    def get_alias_restore_url(self):
+        return "{0}-{1}-restore".format(self._meta.app_label, self._meta.object_name.lower())
 
     def get_alias_direct_delete_url(self):
         return "{0}-{1}-delete".format(self._meta.app_label, self._meta.object_name.lower())
@@ -274,6 +280,13 @@ class BaseModel(models.Model):
                 BaseDeleteAJAX.as_view(), __model_context,
                 name="{0}{1}".format(
                     self.get_alias_direct_delete_url(), __suffix)
+            ),
+            path(
+                "{0}{1}/{2}".format(__prefix, __app_name,
+                                    self.get_restore_url()),
+                BaseRestoreAJAX.as_view(), __model_context,
+                name="{0}{1}".format(
+                    self.get_alias_restore_url(), __suffix)
             ),
             path(
                 "{0}{1}/{2}".format(__prefix, __app_name,
