@@ -252,7 +252,7 @@ class BaseDeleteAJAX(BaseCrudAJAX):
         return not_found_message(self.model)
 
 
-class BaseSoftDeleteAJAX(BaseCrud):
+class BaseSoftDeleteAJAX(BaseCrudAJAX):
     def delete(self, request, model, *args, **kwargs):
         self.model = model
 
