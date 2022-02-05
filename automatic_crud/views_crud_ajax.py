@@ -70,6 +70,9 @@ class BaseCrudAJAX(BaseCrud):
             else:
                 valid_query_dict[f.name] = received_query_dict[f.name]
 
+        if 'model_state' not in valid_query_dict.keys():
+            valid_query_dict['model_state'] = True
+        
         return valid_query_dict
 
 
