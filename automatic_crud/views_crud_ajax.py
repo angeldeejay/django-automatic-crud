@@ -125,7 +125,6 @@ class BaseListAJAX(BaseCrudAJAX):
         invalid_request_response = self._get_invalid_request_response()
         if invalid_request_response is not None:
             return invalid_request_response
-        
 
         self.data = serialize('entity_json', self.get_queryset(),
                               fields=self.get_fields_for_model() + self.model.preloads,
@@ -262,7 +261,8 @@ class BaseSoftDeleteAJAX(BaseCrudAJAX):
 
         instance = get_object(self.model, self.kwargs['id'])
         if instance is not None:
-            instance = instance.update(model_state=False)
+            instance.model_state = False
+            instance.save(force_update=True)
             self.data = serialize(
                 'entity_json', [instance, ],
                 fields=self.get_fields_for_model(),
