@@ -1,6 +1,7 @@
 import json
 import ast
 
+from django.db.models.fields import *
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse as JSR
 from django.core.serializers import serialize
@@ -56,12 +57,17 @@ class BaseCrudAJAX(BaseCrud):
         Generate a dictionary with query string matching model fields
 
         """
-        fields = [f.name for f in self.model._meta.fields]
         received_query_dict = self.request.GET.dict()
         valid_query_dict = {}
-        for k, v in received_query_dict.items():
-            if k in fields:
-                valid_query_dict[k] = v
+        
+        for f in self.model._meta.fields:
+            if f.name not in received_query_dict.keys():
+                continue
+
+            if isinstance(f, BooleanField):
+                valid_query_dict[f.name] = str(received_query_dict[f.name]).lower() == 'true'
+            else:
+                valid_query_dict[f.name] = received_query_dict[f.name]
 
         return valid_query_dict
 
@@ -73,9 +79,7 @@ class BaseListAJAX(BaseCrudAJAX):
         by default order_by = id
 
         """
-        filters: dict = {"model_state": True}
-        for k, v in self._get_query_string().items():
-            filters[k] = v
+        filters = self._get_query_string()
 
         return self.model.objects\
             .filter(**filters)\
