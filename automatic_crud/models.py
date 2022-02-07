@@ -80,7 +80,8 @@ class BaseModel(models.Model):
     @staticmethod
     @receiver(pre_save)
     def pre_save(sender, instance, **kwargs):
-        instance.deleted_at = None if instance.model_state else now()
+        if isinstance(instance, BaseModel):
+            instance.deleted_at = None if instance.model_state else now()
 
     def get_create_form(self, form=None):
         if form != None:
