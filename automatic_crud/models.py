@@ -4,6 +4,9 @@ from django.contrib.auth.decorators import login_required
 from django.utils.translation import gettext_lazy as _
 from django.db.models.fields.related import ForeignKey
 from django.db.models.fields.reverse_related import ManyToManyRel, ManyToOneRel
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
+from django.utils.timezone import now
 
 from automatic_crud.utils import get_model
 from automatic_crud.data_types import *
@@ -19,8 +22,10 @@ class BaseModel(models.Model):
     id = models.AutoField(primary_key=True)
     model_state = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now=False, auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True, auto_now_add=False)
-    deleted_at = models.DateTimeField(auto_now=True, auto_now_add=False)
+    updated_at = models.DateTimeField(
+        auto_now=True, auto_now_add=False, null=True, blank=True)
+    deleted_at = models.DateTimeField(
+        auto_now=False, auto_now_add=False, null=True, blank=True)
 
     create_form = None
     update_form = None
@@ -71,6 +76,11 @@ class BaseModel(models.Model):
             else:
                 output[f.name] = getattr(self, f.name)
         return output
+
+    @staticmethod
+    @receiver(pre_save)
+    def pre_save(sender, instance, **kwargs):
+        instance.deleted_at = None if instance.model_state else now()
 
     def get_create_form(self, form=None):
         if form != None:
