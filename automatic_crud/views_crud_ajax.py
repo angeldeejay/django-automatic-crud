@@ -1,11 +1,13 @@
 import json
 import ast
+import re
 
 from django.db.models.fields import *
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse as JSR
 from django.core.serializers import serialize
 from django.views.generic import View
+from django.core.paginator import Paginator
 
 from automatic_crud.generics import BaseCrud
 from automatic_crud.utils import get_object, get_form, normalize_model_structure
@@ -60,19 +62,23 @@ class BaseCrudAJAX(BaseCrud):
         received_query_dict = self.request.GET.dict()
         valid_query_dict = {}
 
+        query_keys = list(received_query_dict.keys())
         for f in self.model._meta.fields:
-            if f.name not in received_query_dict.keys():
+            regex = re.compile(f'^{f.name}(__\w+)*(__i(startswith|endswith|contains))?$')
+            filter_alias = next((x for x in query_keys if re.match(regex, x)), None)
+
+            if filter_alias is None:
                 continue
 
             if isinstance(f, BooleanField):
-                valid_query_dict[f.name] = str(
-                    received_query_dict[f.name]).lower() == 'true'
+                valid_query_dict[filter_alias] = str(
+                    received_query_dict[filter_alias]).lower() == 'true'
             else:
-                valid_query_dict[f.name] = received_query_dict[f.name]
+                valid_query_dict[filter_alias] = received_query_dict[filter_alias]
 
         if 'model_state' not in valid_query_dict.keys():
             valid_query_dict['model_state'] = True
-        
+
         return valid_query_dict
 
 
@@ -85,11 +91,13 @@ class BaseListAJAX(BaseCrudAJAX):
         """
         filters = self._get_query_string()
 
-        return self.model.objects\
+        queryset = self.model.objects\
             .filter(**filters)\
             .select_related(*self.model.preloads)\
             .prefetch_related(*self.model.preloads)\
             .order_by(f"{self.request.GET.get('order_by','id')}")
+
+        return queryset
 
     def __paginate(self, limit, offset):
         """
@@ -141,7 +149,15 @@ class BaseListAJAX(BaseCrudAJAX):
         if 'paginate' in self.request.GET:
             limit = int(self.request.GET.get('limit', '10'))
             offset = int(self.request.GET.get('offset', '0'))
-            self.__paginate(limit, offset)
+            paginator = Paginator(self.get_queryset(), limit)
+            self.data = serialize('entity_json', paginator.get_page((offset / limit) + 1),
+                                  fields=self.get_fields_for_model() + self.model.preloads,
+                                  use_natural_foreign_keys=True)
+            self._normalize_data(is_list=True)
+            self.data = json.dumps({
+                'length': self.get_queryset().count(),
+                'objects': json.loads(self.data)
+            })
         else:
             self.data = serialize('entity_json', self.get_queryset(),
                                   fields=self.get_fields_for_model() + self.model.preloads,
