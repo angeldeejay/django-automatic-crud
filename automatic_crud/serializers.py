@@ -77,9 +77,9 @@ class ModelJSONEncoder(DjangoJSONEncoder):
             if isinstance(o, File):
                 return o.name
             else:
-                DjangoJSONEncoder().default(o)
+                return DjangoJSONEncoder().default(o)
         except:
             try:
                 return o.natural_key()
             except:
-                super().default(o)
+                return super().default(o)
