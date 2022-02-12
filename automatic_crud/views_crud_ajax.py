@@ -266,7 +266,7 @@ class BaseDeleteAJAX(BaseCrudAJAX):
         if invalid_request_response is not None:
             return invalid_request_response
 
-        instance = get_object(self.model, self.kwargs['id'])
+        instance = get_object(self.model, self.kwargs['id'], force=True)
         if instance is not None:
             instance.delete()
             self.data = serialize(
