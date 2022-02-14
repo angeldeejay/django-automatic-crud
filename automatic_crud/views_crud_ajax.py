@@ -269,6 +269,7 @@ class BaseDeleteAJAX(BaseCrudAJAX):
         instance = get_object(self.model, self.kwargs['id'], force=True)
         if instance is not None:
             instance.delete()
+            instance.id = self.kwargs['id']
             self.data = serialize(
                 'entity_json', [instance, ],
                 fields=self.get_fields_for_model(),
