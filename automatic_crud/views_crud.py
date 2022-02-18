@@ -1,199 +1,294 @@
-from django.shortcuts import render,redirect
-from django.forms.models import modelform_factory
-from django.views.generic import (
-    CreateView,DeleteView,UpdateView,DetailView,
-    ListView,View
-)
+import json
+import ast
+import re
+
+from django.db.models.fields import *
+from django.shortcuts import render
+from django.http import HttpResponse, JsonResponse as JSR
+from django.core.serializers import serialize
+from django.views.generic import View
 from django.core.paginator import Paginator
 
-from automatic_crud.generics import BaseCrudMixin
-from automatic_crud.utils import get_object,get_form,build_template_name
+from automatic_crud.generics import BaseCrud
+from automatic_crud.utils import get_object, get_form, normalize_model_structure
+from automatic_crud.response_messages import *
 
-class BaseList(BaseCrudMixin,ListView):
 
-    def dispatch(self, request, *args, **kwargs):
-        # login required validation
-        validation_login_required,response = self.validate_login_required()
-        if validation_login_required:
-            return response
-        
-        # permission required validation
-        validation_permissions,response = self.validate_permissions()
-        if validation_permissions:
-            return response
+class BaseCrudAJAX(BaseCrud):
+    form_class = None
 
-        return super().dispatch(request, *args, **kwargs)    
+    def _get_invalid_request_response(self):
+        """
+        Validate the current request and ensure if need authentication and
+        permissions
 
+        """
+        validations = [
+            # login required validation
+            self.validate_login_required,
+            # permission required validation
+            self.validate_permissions
+        ]
+
+        for validation in validations:
+            validation_required, validation_response = validation()
+            if validation_required:
+                return validation_response
+
+        return None
+
+    def _normalize_data(self, is_list=False):
+        """
+        Generate an HttpResponse instance to get the serialized query and
+        delete the ['model'] key from the dictionary and convert the dictionary
+        to json and save on self.data
+
+        """
+        temp_response = JSR({'data': self.data})
+        temp_data = temp_response.content.decode("UTF-8")
+        temp_data = ast.literal_eval(temp_data)
+        temp_data = json.loads(temp_data['data'])
+        object_list: list = []
+        for instance in temp_data:
+            instance = normalize_model_structure(self.model, instance)
+            object_list.append(instance)
+        self.data = json.dumps(object_list if is_list else object_list.pop())
+
+    def _get_query_string(self):
+        """
+        Generate a dictionary with query string matching model fields
+
+        """
+        received_query_dict = self.request.GET.dict()
+        valid_query_dict = {}
+
+        query_keys = list(received_query_dict.keys())
+        model_fields = self.model._meta.fields
+        model_fields_names = [f.name for f in model_fields]
+        for f in model_fields:
+            regex = f'^({f.name})((__\w+)*)(__i(startswith|endswith|contains))?$'
+            filter_alias = None
+            for q in query_keys:
+                if re.sub(regex, '\\1', q) == f.name:
+                    filter_alias = q
+                    break
+
+            if filter_alias is None:
+                continue
+
+            if isinstance(f, BooleanField):
+                valid_query_dict[filter_alias] = str(
+                    received_query_dict[filter_alias]).lower() == 'true'
+            else:
+                valid_query_dict[filter_alias] = received_query_dict[filter_alias]
+
+        if 'model_state' not in valid_query_dict.keys() and 'model_state' in model_fields_names:
+            valid_query_dict['model_state'] = True
+
+        return valid_query_dict
+
+
+class BaseListAJAX(BaseCrudAJAX):
     def get_queryset(self):
-        return self.model.objects.filter(model_state = True)
+        """
+        Returns the values as a dictionary ordered by the order_by attribute,
+        by default order_by = id
 
-    def get_context_data(self, **kwargs):
-        context = {}
-        data = self.get_queryset()
-        
-        if self.model.normal_pagination:
-            paginator = Paginator(data,self.model.values_for_page)
-            page_number = self.request.GET.get('page','1')
-            data = paginator.get_page(page_number)
-        
-        context['object_list'] = data
-        return context
+        """
+        filters = self._get_query_string()
 
-    def get(self,request,*args,**kwargs):
-        self.template_name = build_template_name(self.template_name,self.model,'list')
-        return render(request,self.template_name,self.get_context_data())
+        queryset = self.model.objects\
+            .filter(**filters)\
+            .select_related(*self.model.preloads)\
+            .prefetch_related(*self.model.preloads)\
+            .order_by(f"{self.request.GET.get('order_by','id')}")
 
-class BaseCreate(BaseCrudMixin,CreateView):
-    
-    def dispatch(self, request, *args, **kwargs):
-        # login required validation
-        validation_login_required,response = self.validate_login_required()
-        if validation_login_required:
-            return response
-        
-        # permission required validation
-        validation_permissions,response = self.validate_permissions()
-        if validation_permissions:
-            return response
+        return queryset
 
-        return super().dispatch(request, *args, **kwargs)    
+    def get(self, request, model, *args, **kwargs):
+        """
+        Return data of model
 
-    def get(self,request,form = None,*args,**kwargs):
-        self.template_name = build_template_name(self.template_name,self.model,'create')
-        form = get_form(form,self.model)
-        return render(request,self.template_name,{'form':form})    
+        The follow attributes can be sent in request.GET:
+            paginate: results should be paginated
+            offset: element number where the page starts
+            limit: number of record to resolve
 
-    def post(self,request,form = None,*args,**kwargs):
-        self.template_name = build_template_name(self.template_name,self.model,'list')
-        form = get_form(form,self.model)
-        
-        if self.form_class == None:    
-            form = form(request.POST,request.FILES)
-        else:
-            form = self.form_class(request.POST,request.FILES)     
-        
-        if form.is_valid():
-            form.save()
-            return redirect(self.success_url)
-        else:
-            form = self.form_class()
-            context = {
-                'form':form
+        The response structure when results are being paginated is:
+
+            {
+                'length': # amount of records in resultset,
+                'objects': # list of records in current page
             }
-            return render(request,self.template_name, context)
 
-class BaseDetail(BaseCrudMixin,DetailView):
-    def dispatch(self, request, *args, **kwargs):
-        # login required validation
-        validation_login_required,response = self.validate_login_required()
-        if validation_login_required:
-            return response
-        
-        # permission required validation
-        validation_permissions,response = self.validate_permissions()
-        if validation_permissions:
-            return response
+        In the other case, a plain list will be returned:
 
-        return super().dispatch(request, *args, **kwargs)    
+            [
+                ... # list of all records
+            ]
 
-    def get_context_data(self, **kwargs):
-        context = {}
-        context['object'] = get_object(self.model,self.kwargs['id'])
-        return context  
+        """
+        self.model = model
 
-    def get(self,request,form = None,*args,**kwargs):
-        self.template_name = build_template_name(self.template_name,self.model,'detail')
-        return render(request,self.template_name,self.get_context_data())
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
 
-class BaseUpdate(BaseCrudMixin,UpdateView):
+        self.data = serialize('entity_json', self.get_queryset(),
+                              fields=self.get_fields_for_model() + self.model.preloads,
+                              use_natural_foreign_keys=True)
 
-    def dispatch(self, request, *args, **kwargs):
-        # login required validation
-        validation_login_required,response = self.validate_login_required()
-        if validation_login_required:
-            return response
-        
-        # permission required validation
-        validation_permissions,response = self.validate_permissions()
-        if validation_permissions:
-            return response
+        if 'paginate' in self.request.GET:
+            limit = int(self.request.GET.get('limit', '10'))
+            offset = int(self.request.GET.get('offset', '0'))
+            paginator = Paginator(self.get_queryset(), limit)
+            self.data = serialize('entity_json', paginator.get_page((offset / limit) + 1),
+                                  fields=self.get_fields_for_model() + self.model.preloads,
+                                  use_natural_foreign_keys=True)
+            self._normalize_data(is_list=True)
+            self.data = json.dumps({
+                'length': self.get_queryset().count(),
+                'objects': json.loads(self.data)
+            })
+        else:
+            self.data = serialize('entity_json', self.get_queryset(),
+                                  fields=self.get_fields_for_model() + self.model.preloads,
+                                  use_natural_foreign_keys=True)
+            self._normalize_data(is_list=True)
 
-        return super().dispatch(request, *args, **kwargs)   
-    
-    def get_context_data(self, **kwargs):
-        context = {}
-        context['object'] = get_object(self.model,self.kwargs['id'])
-        return context    
+        return HttpResponse(self.data, content_type="application/json")
 
-    def get(self,request,form = None,*args,**kwargs):
-        self.template_name = build_template_name(self.template_name,self.model,'update')
-        
-        form = get_form(form,self.model)
-        form = form(instance = get_object(self.model,self.kwargs['id']))
-        
-        context = self.get_context_data()
-        if context['object'] == None:
-            return redirect(self.success_url)        
-        
-        context['form'] = form
-        return render(request,self.template_name,context)
 
-    def put(self,request,form = None,*args,**kwargs):
-        self.template_name = build_template_name(self.template_name,self.model,'list')
-        form = get_form(form,self.model)
-        
-        instance = get_object(self.model,self.kwargs['id'])
+class BaseCreateAJAX(BaseCrudAJAX):
+    def post(self, request, model, form=None, *args, **kwargs):
+        self.model = model
+
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
+
+        self.form_class = get_form(form, self.model)
+        form = self.form_class(json.loads(request.body), request.FILES)
+        if form.is_valid():
+            instance = form.save()
+            self.data = serialize(
+                'entity_json', [instance, ],
+                fields=self.get_fields_for_model(),
+                use_natural_foreign_keys=True
+            ) if instance is not None and instance.id is not None else None
+            self._normalize_data()
+            return success_create_message(self.model, self.data)
+        return error_create_message(self.model, form)
+
+
+class BaseDetailAJAX(BaseCrudAJAX):
+    def get(self, request, model, *args, **kwargs):
+        self.model = model
+
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
+
+        instance = get_object(self.model, self.kwargs['id'])
         if instance is not None:
-            if self.form_class == None:
-                form = form(request.POST,request.FILES, instance = instance)
-            else:
-                form = self.form_class(request.POST,request.FILES, instance = instance)   
+            self.data = serialize(
+                'entity_json', [instance, ],
+                fields=self.get_fields_for_model(),
+                use_natural_foreign_keys=True
+            )
+            self._normalize_data()
+            return HttpResponse(self.data, content_type="application/json")
+        return not_found_message(self.model)
+
+
+class BaseUpdateAJAX(BaseCrudAJAX):
+    def put(self, request, model, form=None, *args, **kwargs):
+        self.model = model
+
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
+
+        self.form_class = get_form(form, self.model)
+        instance = get_object(self.model, self.kwargs['id'])
+        if instance is not None:
+            form = self.form_class(
+                json.loads(request.body), request.FILES, instance=instance)
             if form.is_valid():
-                form.save()
-                return redirect(self.success_url)
+                instance = form.save()
+                self.data = serialize(
+                    'entity_json', [instance, ],
+                    fields=self.get_fields_for_model(),
+                    use_natural_foreign_keys=True
+                ) if instance is not None and instance.id is not None else None
+                self._normalize_data()
+                return success_update_message(self.model, self.data)
             else:
-                form = self.form_class()
-                context = {
-                    'form':form
-                }
-                return render(request,self.template_name, context)
-        else:
-            return redirect(self.success_url)
+                return error_update_message(self.model, form)
+        return not_found_message(self.model)
 
-class BaseDirectDelete(BaseCrudMixin,DeleteView):
-    def dispatch(self, request, *args, **kwargs):
-        # login required validation
-        validation_login_required,response = self.validate_login_required()
-        if validation_login_required:
-            return response
-        
-        # permission required validation
-        validation_permissions,response = self.validate_permissions()
-        if validation_permissions:
-            return response
 
-        return super().dispatch(request, *args, **kwargs)    
+class BaseRestoreAJAX(BaseCrudAJAX):
+    def put(self, request, model, form=None, *args, **kwargs):
+        self.model = model
 
-class BaseLogicDelete(BaseCrudMixin,DeleteView):
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
 
-    def dispatch(self, request, *args, **kwargs):
-        # login required validation
-        validation_login_required,response = self.validate_login_required()
-        if validation_login_required:
-            return response
-        
-        # permission required validation
-        validation_permissions,response = self.validate_permissions()
-        if validation_permissions:
-            return response
-
-        return super().dispatch(request, *args, **kwargs)
-
-    def delete(self,request,*args,**kwargs):
-        instance = get_object(self.model,self.kwargs['id'])
-        
+        instance = get_object(self.model, self.kwargs['id'], force=True)
         if instance is not None:
-            self.model.objects.filter(id = self.kwargs['id']).update(model_state = False)
-            return redirect(self.success_url)        
-        else:
-            return redirect(self.success_url)
+            instance.model_state = True
+            instance.save(force_update=True)
+            self.data = serialize(
+                'entity_json', [instance, ],
+                fields=self.get_fields_for_model(),
+                use_natural_foreign_keys=True
+            ) if instance is not None and instance.id is not None else None
+            self._normalize_data()
+            return success_update_message(self.model, self.data)
+        return not_found_message(self.model)
+
+
+class BaseDeleteAJAX(BaseCrudAJAX):
+    def delete(self, request, model, *args, **kwargs):
+        self.model = model
+
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
+
+        instance = get_object(self.model, self.kwargs['id'], force=True)
+        if instance is not None:
+            instance.delete()
+            instance.id = self.kwargs['id']
+            self.data = serialize(
+                'entity_json', [instance, ],
+                fields=self.get_fields_for_model(),
+                use_natural_foreign_keys=True
+            )
+            self._normalize_data()
+            return success_delete_message(self.model, self.data)
+        return not_found_message(self.model)
+
+
+class BaseSoftDeleteAJAX(BaseCrudAJAX):
+    def delete(self, request, model, *args, **kwargs):
+        self.model = model
+
+        invalid_request_response = self._get_invalid_request_response()
+        if invalid_request_response is not None:
+            return invalid_request_response
+
+        instance = get_object(self.model, self.kwargs['id'])
+        if instance is not None:
+            instance.model_state = False
+            instance.save(force_update=True)
+            self.data = serialize(
+                'entity_json', [instance, ],
+                fields=self.get_fields_for_model(),
+                use_natural_foreign_keys=True
+            )
+            self._normalize_data()
+            return success_delete_message(self.model, self.data)
+        return not_found_message(self.model)

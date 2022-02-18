@@ -63,9 +63,15 @@ class BaseCrudAJAX(BaseCrud):
         valid_query_dict = {}
 
         query_keys = list(received_query_dict.keys())
-        for f in self.model._meta.fields:
-            regex = re.compile(f'^{f.name}(__\w+)*(__i(startswith|endswith|contains))?$')
-            filter_alias = next((x for x in query_keys if re.match(regex, x)), None)
+        model_fields = self.model._meta.fields
+        model_fields_names = [f.name for f in model_fields]
+        for f in model_fields:
+            regex = f'^({f.name})((__\w+)*)(__i(startswith|endswith|contains))?$'
+            filter_alias = None
+            for q in query_keys:
+                if re.sub(regex, '\\1', q) == f.name:
+                    filter_alias = q
+                    break
 
             if filter_alias is None:
                 continue
@@ -76,7 +82,7 @@ class BaseCrudAJAX(BaseCrud):
             else:
                 valid_query_dict[filter_alias] = received_query_dict[filter_alias]
 
-        if 'model_state' not in valid_query_dict.keys():
+        if 'model_state' not in valid_query_dict.keys() and 'model_state' in model_fields_names:
             valid_query_dict['model_state'] = True
 
         return valid_query_dict
@@ -98,20 +104,6 @@ class BaseListAJAX(BaseCrudAJAX):
             .order_by(f"{self.request.GET.get('order_by','id')}")
 
         return queryset
-
-    def __paginate(self, limit, offset):
-        """
-        Returns the paged query from the server.
-
-        """
-        self.data = serialize('entity_json', self.get_queryset()[offset:limit],
-                              fields=self.get_fields_for_model() + self.model.preloads,
-                              use_natural_foreign_keys=True)
-        self._normalize_data(is_list=True)
-        self.data = json.dumps({
-            'length': self.get_queryset().count(),
-            'objects': json.loads(self.data)
-        })
 
     def get(self, request, model, *args, **kwargs):
         """

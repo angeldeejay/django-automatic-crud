@@ -1,6 +1,5 @@
 from django.db import models
 from django.urls import path, reverse_lazy
-from django.contrib.auth.decorators import login_required
 from django.utils.translation import gettext_lazy as _
 from django.db.models.fields.related import ForeignKey
 from django.db.models.fields.reverse_related import ManyToManyRel, ManyToOneRel
@@ -43,7 +42,7 @@ class BaseModel(models.Model):
     model_permissions = False
     default_permissions = False
 
-    exclude_fields = ['model_state']
+    exclude_fields = []
     preloads = []
 
     success_create_message = _('SUCCESS_CREATE_MESSAGE')
@@ -79,8 +78,9 @@ class BaseModel(models.Model):
 
     @staticmethod
     @receiver(pre_save)
-    def pre_save(sender, instance, **kwargs):
-        if isinstance(instance, BaseModel):
+    def pre_save(sender, instance, **_kwargs):
+        model_fields = instance.__class__._meta.get_fields()
+        if isinstance(instance, sender) and 'model_state' in model_fields and 'deleted_at' in model_fields:
             instance.deleted_at = None if instance.model_state else now()
 
     def get_create_form(self, form=None):

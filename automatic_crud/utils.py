@@ -16,10 +16,14 @@ def get_model(__app_name: str, __model_name: str) -> Instance:
 def get_object(model: Instance, id: int, force=False):
     # return the record for a id sended
     instance = False
-    if force:
-        instance = model.objects.filter(id=id).first()
-    else:
-        instance = model.objects.filter(id=id, model_state=True).first()
+    model_fields = model._meta.fields
+    model_fields_names = [f.name for f in model_fields]
+    filters = {'id': id}
+
+    if not force and 'model_state' in model_fields_names:
+        filters['model_state'] = True
+
+    instance = model.objects.filter(**filters).first()
     if instance:
         return instance
     return None
