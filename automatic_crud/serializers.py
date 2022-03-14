@@ -6,6 +6,7 @@ from django.core.serializers.base import DeserializationError
 from django.core.serializers.python import (
     Deserializer as PythonDeserializer, Serializer as PythonSerializer,
 )
+from django_countries.fields import Country
 
 
 class Serializer(PythonSerializer):
@@ -74,6 +75,8 @@ class ModelJSONEncoder(DjangoJSONEncoder):
 
     def default(self, o):
         try:
+            if isinstance(o, Country):
+                return o.code
             if isinstance(o, File):
                 return o.name
             else:
