@@ -9,7 +9,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name='django-automatic-crud',
-    version='2.0.0',
+    version='2.0.1',
     packages=find_packages(),
     package_data={
         'automatic_crud': ['locale/*/LC_MESSAGES/*.mo', ]

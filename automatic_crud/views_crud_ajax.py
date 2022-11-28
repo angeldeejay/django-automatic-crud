@@ -3,10 +3,8 @@ import ast
 import re
 
 from django.db.models.fields import *
-from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse as JSR
 from django.core.serializers import serialize
-from django.views.generic import View
 from django.core.paginator import Paginator
 
 from automatic_crud.generics import BaseCrud
@@ -66,10 +64,15 @@ class BaseCrudAJAX(BaseCrud):
         model_fields = self.model._meta.fields
         model_fields_names = [f.name for f in model_fields]
         for f in model_fields:
-            regex = f'^({f.name})((__\w+)*)(__i(startswith|endswith|contains))?$'
+            regex = f'^(?P<field_name>{f.name})(?P<field_outer_name>__(_?[a-zA-Z0-9])+)?(?P<mutator>__i(startswith|endswith|contains|n))?$'
             filter_alias = None
+            filter_expanded = None
             for q in query_keys:
                 if re.sub(regex, '\\1', q) == f.name:
+                    m = re.match(regex, q)
+                    filter_expanded = {}
+                    for k in ['field_name', 'field_outer_name', 'mutator']:
+                        filter_expanded[k] = m.group(k)
                     filter_alias = q
                     break
 
@@ -80,7 +83,14 @@ class BaseCrudAJAX(BaseCrud):
                 valid_query_dict[filter_alias] = str(
                     received_query_dict[filter_alias]).lower() == 'true'
             else:
-                valid_query_dict[filter_alias] = received_query_dict[filter_alias]
+                if filter_expanded is None:
+                    valid_query_dict[filter_alias] = received_query_dict[filter_alias]
+                else:
+                    if filter_expanded['mutator'] == '__in':
+                        valid_query_dict[filter_alias] = [
+                            v.strip() for v in received_query_dict[filter_alias].split(',')]
+                    else:
+                        valid_query_dict[filter_alias] = received_query_dict[filter_alias]
 
         if 'model_state' not in valid_query_dict.keys() and 'model_state' in model_fields_names:
             valid_query_dict['model_state'] = True
